@@ -7,8 +7,9 @@ const badgeVariants = cva(
     variants: {
       variant: {
         backlog: "bg-gray-50 text-gray-600 ring-gray-500/10",
+        "in-progress": "bg-blue-50 text-blue-700 ring-blue-600/20",
         "feature-flagged": "bg-amber-50 text-amber-700 ring-amber-600/20",
-        live: "bg-green-50 text-green-700 ring-green-600/20",
+        public: "bg-green-50 text-green-700 ring-green-600/20",
       },
     },
     defaultVariants: { variant: "backlog" },

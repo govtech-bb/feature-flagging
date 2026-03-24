@@ -13,13 +13,14 @@ export const Route = createFileRoute("/")({
   component: ServicesPage,
 });
 
-type Tab = "all" | "backlog" | "feature-flagged" | "live";
+type Tab = "all" | EnrichedService["status"];
 
 const tabs: { id: Tab; label: string }[] = [
   { id: "all", label: "All" },
   { id: "backlog", label: "Backlog" },
+  { id: "in-progress", label: "In progress" },
   { id: "feature-flagged", label: "Feature flagged" },
-  { id: "live", label: "Live" },
+  { id: "public", label: "Public" },
 ];
 
 function ServicesPage() {
@@ -34,11 +35,12 @@ function ServicesPage() {
     ? {
         all: data.length,
         backlog: data.filter((s) => s.status === "backlog").length,
+        "in-progress": data.filter((s) => s.status === "in-progress").length,
         "feature-flagged": data.filter((s) => s.status === "feature-flagged")
           .length,
-        live: data.filter((s) => s.status === "live").length,
+        public: data.filter((s) => s.status === "public").length,
       }
-    : { all: 0, backlog: 0, "feature-flagged": 0, live: 0 };
+    : { all: 0, backlog: 0, "in-progress": 0, "feature-flagged": 0, public: 0 };
 
   const filtered: EnrichedService[] = data
     ? data.filter(

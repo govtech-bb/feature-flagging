@@ -242,16 +242,28 @@ function mergeServicesWithConfigs(
     const hasAnyFlag = isProtected || subpages.some((sp) => sp.isProtected);
 
     let status: EnrichedService["status"];
-    if (!service.hasImplementation) {
+    const cs = service.catalogueStatus;
+
+    if (cs === "consider-next") {
+      // "Consider next" has no dedicated tab — group it with backlog
       status = "backlog";
-    } else if (hasAnyFlag) {
+    } else if (cs === "public" && hasAnyFlag) {
+      // A live service can be overridden to feature-flagged by the form-processor-api flag
       status = "feature-flagged";
     } else {
-      status = "live";
+      // "public", "backlog", "in-progress", "feature-flagged" pass through as-is
+      status = cs;
     }
 
     return {
       ...service,
+      // Airtable doesn't track subpage slugs, so fall back to whichever slugs
+      // the form-processor-api already has configs for. This keeps the subpage
+      // flag panel populated without requiring a dedicated Airtable column.
+      subPageSlugs:
+        service.subPageSlugs.length > 0
+          ? service.subPageSlugs
+          : subpages.map((sp) => sp.slug),
       isProtected,
       subpages,
       status,
