@@ -41,8 +41,9 @@ const columnHelper = createColumnHelper<EnrichedService>();
 
 const statusLabel: Record<EnrichedService["status"], string> = {
   backlog: "Backlog",
+  "in-progress": "In progress",
   "feature-flagged": "Feature flagged",
-  live: "Live",
+  public: "Public",
 };
 
 function SortIcon({ isSorted }: { isSorted: false | "asc" | "desc" }) {

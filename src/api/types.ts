@@ -1,35 +1,56 @@
-/** Mirrors ServiceSummary from alpha-preview's /api/services */
-export interface ServiceSummary {
+/**
+ * Normalised Airtable "Status" values.
+ *
+ * "consider-next" has no dedicated filter tab and is grouped into "backlog"
+ * when computing the final EnrichedService status.
+ */
+export type CatalogueStatus =
+  | "public"
+  | "backlog"
+  | "in-progress"
+  | "feature-flagged"
+  | "consider-next";
+
+/** Canonical shape for a single service entry in the catalogue. */
+export type ServiceSummary = {
+  catalogueStatus: CatalogueStatus;
   categorySlug: string;
   categoryTitle: string;
+  /**
+   * true when the service has a deployed form implementation ("public" or
+   * "feature-flagged" in Airtable). Controls whether the feature-flag toggle
+   * and row expander are shown in the table.
+   */
   hasImplementation: boolean;
   serviceSlug: string;
   subPageSlugs: string[];
   title: string;
-}
+};
 
 /** Mirrors ServiceAccessSummary from form-processor-api */
-export interface ServiceAccessConfig {
+export type ServiceAccessConfig = {
   isProtected: boolean;
   serviceSlug: string;
   subpages: Array<{ slug: string; isProtected: boolean }>;
-}
+};
 
-export interface ApiEnvelope<T> {
+export type ApiEnvelope<T> = {
   data: T;
   message?: string;
   success: boolean;
-}
+};
 
 /**
- * A service enriched with both its content metadata and its feature flag state.
+ * A service enriched with both its catalogue metadata and its feature flag state.
  *
  * status derivation:
- *   backlog        — no form implementation exists yet
- *   feature-flagged — isProtected is true (hidden from public, visible to research users)
- *   live           — has an implementation and is not protected
+ *   backlog         — Airtable status is "backlog" or "consider-next"
+ *   in-progress     — Airtable status is "in-progress" (form being built, not yet deployed)
+ *   feature-flagged — Airtable status is "feature-flagged", OR status is "public" but
+ *                     isProtected is true in the form-processor-api
+ *   public          — Airtable status is "public" and isProtected is false
  */
 export type EnrichedService = ServiceSummary &
   Pick<ServiceAccessConfig, "isProtected" | "subpages"> & {
-    status: "backlog" | "feature-flagged" | "live";
+    status: "backlog" | "in-progress" | "feature-flagged" | "public";
   };
