@@ -1,4 +1,4 @@
-# Service Dashboard
+# Feature Flagging
 
 Internal admin tool for **GovTech Barbados** to manage the visibility of government services on the [alpha-preview](../alpha-preview) portal. Authenticated administrators can view all services, inspect their status, and toggle feature flags at both the service and subpage level.
 
