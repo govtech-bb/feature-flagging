@@ -43,14 +43,25 @@ function ServicesPage() {
     : { all: 0, backlog: 0, "in-progress": 0, "feature-flagged": 0, public: 0 };
 
   const filtered: EnrichedService[] = data
-    ? data.filter(
-        (s) =>
-          (activeTab === "all" || s.status === activeTab) &&
-          (search === "" ||
-            s.title.toLowerCase().includes(search.toLowerCase()) ||
-            s.serviceSlug.toLowerCase().includes(search.toLowerCase()) ||
-            s.categoryTitle.toLowerCase().includes(search.toLowerCase()))
-      )
+    ? data
+        .filter(
+          (s) =>
+            (activeTab === "all" || s.status === activeTab) &&
+            (search === "" ||
+              s.title.toLowerCase().includes(search.toLowerCase()) ||
+              s.serviceSlug.toLowerCase().includes(search.toLowerCase()) ||
+              s.categoryTitle.toLowerCase().includes(search.toLowerCase()))
+        )
+        .sort((a, b) => {
+          // "Public" services float to the top, then alphabetical by title
+          if (a.status === "public" && b.status !== "public") {
+            return -1;
+          }
+          if (a.status !== "public" && b.status === "public") {
+            return 1;
+          }
+          return a.title.localeCompare(b.title);
+        })
     : [];
 
   return (
@@ -155,12 +166,8 @@ function ServicesPage() {
       {!(isLoading || isError) && (
         <ServicesTable
           data={filtered}
-          onToggleFeatureFlag={(slug, isProtected, subPageSlugs) =>
-            toggleMutation.mutate({
-              serviceSlug: slug,
-              isProtected,
-              subPageSlugs,
-            })
+          onToggleFeatureFlag={(slug, isProtected) =>
+            toggleMutation.mutate({ serviceSlug: slug, isProtected })
           }
           onToggleSubpageFeatureFlag={(serviceSlug, subpageSlug, isProtected) =>
             toggleSubpageMutation.mutate({

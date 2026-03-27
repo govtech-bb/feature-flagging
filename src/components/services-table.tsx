@@ -19,15 +19,9 @@ type TogglingSubpage = { serviceSlug: string; subpageSlug: string } | undefined;
 
 interface ServicesTableProps {
   data: EnrichedService[];
-  /**
-   * Called when the service-level flag is toggled.
-   * subPageSlugs contains all subpages to cascade the change to by default.
-   */
-  onToggleFeatureFlag: (
-    serviceSlug: string,
-    isProtected: boolean,
-    subPageSlugs: string[]
-  ) => void;
+  /** Toggles service-level flag and cascades to all subpages. */
+  onToggleFeatureFlag: (serviceSlug: string, isProtected: boolean) => void;
+  /** Toggles a single subpage's flag independently. */
   onToggleSubpageFeatureFlag: (
     serviceSlug: string,
     subpageSlug: string,
@@ -134,11 +128,7 @@ export function ServicesTable({
               checked={info.getValue()}
               disabled={isToggling}
               onCheckedChange={(checked) =>
-                onToggleFeatureFlag(
-                  service.serviceSlug,
-                  checked,
-                  service.subPageSlugs
-                )
+                onToggleFeatureFlag(service.serviceSlug, checked)
               }
             />
           </div>
@@ -251,28 +241,27 @@ function SubpageFlags({
   onToggle,
   togglingSubpage,
 }: SubpageFlagsProps) {
-  // Build a lookup of current DB state; slugs absent from DB default to false
-  const dbState = new Map(
-    service.subpages.map((sp) => [sp.slug, sp.isProtected])
-  );
-
   return (
     <div className="rounded-md border border-gray-200 bg-white p-3">
       <p className="mb-3 font-medium text-gray-400 text-xs uppercase tracking-wide">
         Subpage flags
       </p>
       <div className="space-y-2">
-        {service.subPageSlugs.map((slug) => {
-          const isProtected = dbState.get(slug) ?? false;
+        {service.subpages.map((subpage) => {
           const isToggling =
             togglingSubpage?.serviceSlug === service.serviceSlug &&
-            togglingSubpage?.subpageSlug === slug;
+            togglingSubpage?.subpageSlug === subpage.slug;
 
           return (
-            <div className="flex items-center justify-between gap-4" key={slug}>
+            <div
+              className="flex items-center justify-between gap-4"
+              key={subpage.slug}
+            >
               <div className="flex items-center gap-2">
-                <span className="font-mono text-gray-600 text-xs">/{slug}</span>
-                {isProtected && (
+                <span className="font-mono text-gray-600 text-xs">
+                  /{subpage.slug}
+                </span>
+                {subpage.isProtected && (
                   <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-600 text-xs">
                     protected
                   </span>
@@ -283,10 +272,10 @@ function SubpageFlags({
                   <span className="text-gray-400 text-xs">Saving…</span>
                 )}
                 <Switch
-                  checked={isProtected}
+                  checked={subpage.isProtected}
                   disabled={isToggling}
                   onCheckedChange={(checked) =>
-                    onToggle(service.serviceSlug, slug, checked)
+                    onToggle(service.serviceSlug, subpage.slug, checked)
                   }
                 />
               </div>

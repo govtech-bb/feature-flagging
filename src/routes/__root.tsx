@@ -17,7 +17,12 @@ function RootLayout() {
     // Clear the local OIDC session first so the app doesn't treat the user
     // as authenticated when Cognito redirects back.
     await auth.removeUser();
-    const logoutUri = encodeURIComponent(window.location.origin);
+    // Cognito requires an exact match — ensure trailing slash matches the
+    // "Allowed sign-out URLs" configured in the app client.
+    const origin = window.location.origin.endsWith("/")
+      ? window.location.origin
+      : `${window.location.origin}/`;
+    const logoutUri = encodeURIComponent(origin);
     window.location.href = `https://${COGNITO_DOMAIN}/logout?client_id=${CLIENT_ID}&logout_uri=${logoutUri}`;
   }
 
@@ -55,7 +60,7 @@ function RootLayout() {
         <div className="text-center">
           <LayoutDashboard className="mx-auto mb-3 h-8 w-8 text-blue-600" />
           <h1 className="font-semibold text-base text-gray-900">
-            GovTech Barbados Service Status Dashboard
+            GovTech Barbados Feature Flagging
           </h1>
           <p className="mt-1 text-gray-500 text-sm">
             Sign in to manage service visibility
@@ -79,7 +84,7 @@ function RootLayout() {
           <div className="flex items-center gap-2">
             {/* <LayoutDashboard className="h-5 w-5 text-blue-600" /> */}
             <span className="font-semibold text-gray-900 text-sm">
-              GovTech Barbados - Service Status Dashboard
+              GovTech Barbados - Feature Flagging
             </span>
           </div>
           <div className="flex items-center gap-4">

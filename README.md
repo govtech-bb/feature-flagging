@@ -1,4 +1,4 @@
-# Service Dashboard
+# Feature Flagging
 
 Internal admin tool for **GovTech Barbados** to manage the visibility of government services on the [alpha-preview](../alpha-preview) portal. Authenticated administrators can view all services, inspect their status, and toggle feature flags at both the service and subpage level.
 
@@ -136,3 +136,6 @@ pnpm build
 ## Roadmap
 
 - [x] **Fetch services from Airtable** — The service catalogue is sourced directly from an Airtable base, decoupling the dashboard from the alpha-preview runtime. Non-technical staff can maintain the canonical list of services without a code deployment.
+- [ ] **Add audit logging**
+- [ ] **Add unit tests**
+- [ ] **Add e2e tests**
