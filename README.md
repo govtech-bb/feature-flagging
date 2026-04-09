@@ -136,3 +136,6 @@ pnpm build
 ## Roadmap
 
 - [x] **Fetch services from Airtable** — The service catalogue is sourced directly from an Airtable base, decoupling the dashboard from the alpha-preview runtime. Non-technical staff can maintain the canonical list of services without a code deployment.
+- [ ] **Add audit logging**
+- [ ] **Add unit tests**
+- [ ] **Add e2e tests**

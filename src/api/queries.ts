@@ -44,6 +44,7 @@ export function useEnrichedServices() {
   };
 }
 
+/** Toggles the service-level flag and cascades to all subpages. */
 export function useToggleFeatureFlag() {
   const queryClient = useQueryClient();
   const auth = useAuth();
@@ -52,21 +53,18 @@ export function useToggleFeatureFlag() {
     mutationFn: ({
       serviceSlug,
       isProtected,
-      subPageSlugs,
     }: {
       serviceSlug: string;
       isProtected: boolean;
-      subPageSlugs?: string[];
     }) => {
       const token = auth.user?.access_token;
       if (!token) {
         throw new Error("Not authenticated");
       }
-      return updateFeatureFlag(serviceSlug, isProtected, token, subPageSlugs);
+      return updateFeatureFlag(serviceSlug, isProtected, token);
     },
 
-    // Optimistically update service-level flag and cascade to subpages
-    onMutate: async ({ serviceSlug, isProtected, subPageSlugs }) => {
+    onMutate: async ({ serviceSlug, isProtected }) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.configs });
 
       const previous = queryClient.getQueryData<ServiceAccessConfig[]>(
@@ -82,28 +80,17 @@ export function useToggleFeatureFlag() {
 
           const exists = old.some((c) => c.serviceSlug === serviceSlug);
 
-          const updatedSubpages = (
-            current: ServiceAccessConfig["subpages"]
-          ) => {
-            if (!subPageSlugs?.length) {
-              return current;
-            }
-            // Apply the new flag to each cascaded subpage, adding rows that don't exist yet
-            const updatedSlugs = new Set(subPageSlugs);
-            const updated = current.map((sp) =>
-              updatedSlugs.has(sp.slug) ? { ...sp, isProtected } : sp
-            );
-            const existingSlugs = new Set(current.map((sp) => sp.slug));
-            const newEntries = subPageSlugs
-              .filter((s) => !existingSlugs.has(s))
-              .map((s) => ({ slug: s, isProtected }));
-            return [...updated, ...newEntries];
-          };
-
           if (exists) {
             return old.map((c) =>
               c.serviceSlug === serviceSlug
-                ? { ...c, isProtected, subpages: updatedSubpages(c.subpages) }
+                ? {
+                    ...c,
+                    isProtected,
+                    subpages: [
+                      { slug: "start", isProtected },
+                      { slug: "form", isProtected },
+                    ],
+                  }
                 : c
             );
           }
@@ -113,7 +100,10 @@ export function useToggleFeatureFlag() {
             {
               serviceSlug,
               isProtected,
-              subpages: updatedSubpages([]),
+              subpages: [
+                { slug: "start", isProtected },
+                { slug: "form", isProtected },
+              ],
             },
           ];
         }
@@ -134,6 +124,7 @@ export function useToggleFeatureFlag() {
   });
 }
 
+/** Toggles a single subpage's feature flag independently. */
 export function useToggleSubpageFeatureFlag() {
   const queryClient = useQueryClient();
   const auth = useAuth();
@@ -174,7 +165,9 @@ export function useToggleSubpageFeatureFlag() {
             return old;
           }
 
-          const serviceExists = old.some((c) => c.serviceSlug === serviceSlug);
+          const serviceExists = old.some(
+            (c) => c.serviceSlug === serviceSlug
+          );
 
           if (serviceExists) {
             return old.map((c) => {
@@ -197,7 +190,6 @@ export function useToggleSubpageFeatureFlag() {
             });
           }
 
-          // Service had no DB entry yet — create a minimal one
           return [
             ...old,
             {
@@ -226,6 +218,26 @@ export function useToggleSubpageFeatureFlag() {
 
 // --- Derived data -----------------------------------------------------------
 
+/**
+ * A service is considered feature-flagged when either its service-level
+ * isProtected flag is true OR any of its subpage entries are protected.
+ * This matches how the form-processor-api stores protection at the subpage level.
+ */
+function hasAnyProtection(config: ServiceAccessConfig): boolean {
+  return (
+    config.isProtected || config.subpages.some((sp) => sp.isProtected)
+  );
+}
+
+/**
+ * Every implemented service has start + form subpages. When the API has no
+ * entries yet we seed defaults so the expand panel always has rows to show.
+ */
+const DEFAULT_SUBPAGES: ServiceAccessConfig["subpages"] = [
+  { slug: "start", isProtected: false },
+  { slug: "form", isProtected: false },
+];
+
 function mergeServicesWithConfigs(
   services: ServiceSummary[],
   configs: ServiceAccessConfig[]
@@ -234,37 +246,35 @@ function mergeServicesWithConfigs(
 
   return services.map((service) => {
     const config = configBySlug.get(service.serviceSlug);
-    const isProtected = config?.isProtected ?? false;
-    const subpages = config?.subpages ?? [];
+    const subpages =
+      config && config.subpages.length > 0
+        ? config.subpages
+        : DEFAULT_SUBPAGES;
 
-    // A service is feature-flagged if the service itself is protected,
-    // or if any of its subpages are protected
-    const hasAnyFlag = isProtected || subpages.some((sp) => sp.isProtected);
+    // The top-level switch means "flag everything" — it should only show ON
+    // when every subpage is protected. Individual subpages can be toggled
+    // independently in the expanded panel.
+    const allSubpagesProtected =
+      subpages.length > 0 && subpages.every((sp) => sp.isProtected);
+
+    // Status uses "any" protection — a service is feature-flagged if at least
+    // one subpage is protected, even if the top-level switch is off.
+    const hasFlag = config ? hasAnyProtection(config) : false;
 
     let status: EnrichedService["status"];
     const cs = service.catalogueStatus;
 
     if (cs === "consider-next") {
-      // "Consider next" has no dedicated tab — group it with backlog
       status = "backlog";
-    } else if (cs === "public" && hasAnyFlag) {
-      // A live service can be overridden to feature-flagged by the form-processor-api flag
+    } else if (cs === "public" && hasFlag) {
       status = "feature-flagged";
     } else {
-      // "public", "backlog", "in-progress", "feature-flagged" pass through as-is
       status = cs;
     }
 
     return {
       ...service,
-      // Airtable doesn't track subpage slugs, so fall back to whichever slugs
-      // the form-processor-api already has configs for. This keeps the subpage
-      // flag panel populated without requiring a dedicated Airtable column.
-      subPageSlugs:
-        service.subPageSlugs.length > 0
-          ? service.subPageSlugs
-          : subpages.map((sp) => sp.slug),
-      isProtected,
+      isProtected: allSubpagesProtected,
       subpages,
       status,
     };

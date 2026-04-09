@@ -19,15 +19,20 @@ export type ServiceSummary = {
   /**
    * true when the service has a deployed form implementation ("public" or
    * "feature-flagged" in Airtable). Controls whether the feature-flag toggle
-   * and row expander are shown in the table.
+   * is shown in the table.
    */
   hasImplementation: boolean;
   serviceSlug: string;
-  subPageSlugs: string[];
   title: string;
 };
 
-/** Mirrors ServiceAccessSummary from form-processor-api */
+/**
+ * Mirrors ServiceAccessSummary from form-processor-api.
+ *
+ * The API stores protection at both the service level and per-subpage.
+ * The dashboard toggle always cascades to the start + form subpages,
+ * so both levels may have entries.
+ */
 export type ServiceAccessConfig = {
   isProtected: boolean;
   serviceSlug: string;

@@ -1,3 +1,4 @@
+import { REGISTRY_BY_TITLE } from "@/data/service-registry";
 import type {
   ApiEnvelope,
   CatalogueStatus,
@@ -18,7 +19,7 @@ type AirtableServiceFields = {
   // Single-select: "Backlog" means not yet implemented; all other values are treated as implemented
   Status?: string;
   Ministry?: string;
-  // Full URL to the service on the portal, e.g. https://alpha.gov.bb/services/birth-certificate
+  // Full URL to the service on the portal — may include subpage paths like /start
   Link?: string;
 };
 
@@ -65,7 +66,6 @@ const IMPLEMENTED_STATUSES = new Set<CatalogueStatus>([
 
 const NON_ALPHANUMERIC_RE = /[^a-z0-9]+/g;
 const LEADING_TRAILING_HYPHEN_RE = /^-|-$/g;
-const TRAILING_SLASH_RE = /\/$/;
 
 /**
  * Converts a ministry name to a URL-safe slug.
@@ -78,26 +78,17 @@ function toSlug(text: string): string {
     .replace(LEADING_TRAILING_HYPHEN_RE, "");
 }
 
-/**
- * Extracts the final path segment from a URL or path string.
- * e.g. "https://alpha.gov.bb/services/birth-certificate" → "birth-certificate"
- */
-function extractSlugFromLink(link: string): string {
-  try {
-    const pathname = new URL(link).pathname;
-    return pathname.replace(TRAILING_SLASH_RE, "").split("/").pop() ?? link;
-  } catch {
-    // Handle plain slugs or relative paths that aren't valid URLs
-    return link.replace(TRAILING_SLASH_RE, "").split("/").pop() ?? link;
-  }
-}
-
 // --- Services metadata (Airtable) -------------------------------------------
 
 /**
  * Fetches the full service catalogue from Airtable, handling pagination
  * automatically. Airtable caps responses at 100 records per page and signals
  * more pages via an `offset` token in the response body.
+ *
+ * Each record is matched against the static SERVICE_REGISTRY (by title) to
+ * resolve the correct serviceSlug, categorySlug, and hasImplementation flag.
+ * Airtable remains the source of truth for catalogueStatus (workflow state),
+ * while the registry is the source of truth for portal slugs.
  */
 export async function fetchServices(): Promise<ServiceSummary[]> {
   const records: AirtableRecord[] = [];
@@ -125,19 +116,24 @@ export async function fetchServices(): Promise<ServiceSummary[]> {
   } while (offset);
 
   return records.map((record) => {
+    const title = record.fields["Service Name"] ?? "";
     const ministry = record.fields.Ministry ?? "";
     const catalogueStatus = parseCatalogueStatus(record.fields.Status ?? "");
 
+    // Match against the static registry for correct portal slugs.
+    // Falls back to a generated slug from the title for Airtable-only entries
+    // that don't exist in the alpha-preview content directory.
+    const registryEntry = REGISTRY_BY_TITLE.get(title.toLowerCase());
+
     return {
-      serviceSlug: extractSlugFromLink(record.fields.Link ?? ""),
-      title: record.fields["Service Name"] ?? "",
-      categoryTitle: ministry,
-      categorySlug: toSlug(ministry),
+      serviceSlug: registryEntry?.serviceSlug ?? toSlug(title),
+      title,
+      categoryTitle: registryEntry?.categoryTitle ?? ministry,
+      categorySlug: registryEntry?.categorySlug ?? toSlug(ministry),
       catalogueStatus,
-      hasImplementation: IMPLEMENTED_STATUSES.has(catalogueStatus),
-      // Subpage slugs are not tracked in Airtable — mergeServicesWithConfigs
-      // falls back to the slugs already known to the form-processor-api
-      subPageSlugs: [],
+      hasImplementation:
+        registryEntry?.hasImplementation ??
+        IMPLEMENTED_STATUSES.has(catalogueStatus),
     };
   });
 }
@@ -179,24 +175,26 @@ async function patchFeatureFlag(
 }
 
 /**
- * Toggles the service-level feature flag.
- *
- * When subpageSlugs is provided the same isProtected value is also applied
- * to each listed subpage in the same request (cascade on toggle).
+ * Every implemented service in alpha-preview has these two subpages.
+ * The form-processor-api stores protection at the subpage level, so we always
+ * cascade the toggle to both so the DB entries are created/updated correctly.
  */
+const FLAGGED_SUBPAGE_SLUGS = ["start", "form"];
+
+/** Toggles the service-level feature flag and cascades to start + form subpages. */
 export function updateFeatureFlag(
   serviceSlug: string,
   isProtected: boolean,
-  accessToken: string,
-  subpageSlugs?: string[]
+  accessToken: string
 ): Promise<ServiceAccessConfig> {
   return patchFeatureFlag(
     `${PROCESSING_API_URL}/services/${serviceSlug}/feature-flag`,
-    { isProtected, ...(subpageSlugs && { subpageSlugs }) },
+    { isProtected, subpageSlugs: FLAGGED_SUBPAGE_SLUGS },
     accessToken
   );
 }
 
+/** Toggles the feature flag for a single subpage. */
 export function updateSubpageFeatureFlag(
   serviceSlug: string,
   subpageSlug: string,
