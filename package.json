@@ -40,5 +40,10 @@
     "typescript": "~5.9.3",
     "ultracite": "latest",
     "vite": "^7.3.1"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss": "^8.5.23"
+    }
   }
 }
